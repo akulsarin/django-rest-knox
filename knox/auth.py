@@ -53,7 +53,7 @@ class TokenAuthentication(BaseAuthentication):
         user, auth_token = self.authenticate_credentials(auth[1])
         return (user, auth_token)
 
-    def authenticate_credentials(self, token):
+    def authenticate_credentials(self, token, want_inactive=False):
         '''
         Due to the random nature of hashing a value, this must inspect
         each auth_token individually to find the correct one.
@@ -74,7 +74,10 @@ class TokenAuthentication(BaseAuthentication):
             if compare_digest(digest, auth_token.digest):
                 if knox_settings.AUTO_REFRESH and auth_token.expiry:
                     self.renew_token(auth_token)
-                return self.validate_user(auth_token)
+                if want_inactive:
+                    return auth_token.user
+                else:
+                    return self.validate_user(auth_token)
         raise exceptions.AuthenticationFailed(msg)
 
     def renew_token(self, auth_token):
@@ -94,6 +97,9 @@ class TokenAuthentication(BaseAuthentication):
 
     def authenticate_header(self, request):
         return knox_settings.AUTH_HEADER_PREFIX
+
+    def instantiate_user(self, token):
+        return self.authenticate_credentials(token, want_inactive=True)
 
     def _cleanup_token(self, auth_token):
         for other_token in auth_token.user.auth_token_set.all():
